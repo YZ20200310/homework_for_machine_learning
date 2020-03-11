@@ -1,0 +1,141 @@
+---
+title: "machine_learning_project"
+author: "YZheng"
+date: "3/10/2020"
+output: html_document
+---
+This is the write up of the course project for Practical Machine Learning.    RStudio version 3.6.3 was used for this project.  
+In this project, data collected from Jawbone Up, Nike FuelBand, and Fitbit was used to track 6 participants’ activities.  These 6 participates performed barbell lifts either correctly or incorrectly in 5 different ways.  The task is to predict the manner they did the exercise.  The variable “classe” in the training data set will be the dependent variable.  Other variables in the training data set could be used as independent variables for this project.  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1-Explore and Clean Data
+```{r}
+#install.packages("randomForest")
+library(caret)
+library(AppliedPredictiveModeling)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+library(ggplot2)
+library(corrplot)
+library(gbm)
+
+#training <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+training <- read.csv("pml-training.csv")
+
+
+#valid_in <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+valid_in <- read.csv("pml-testing.csv")
+
+
+
+
+trainData<-training[,colSums(is.na(training))==0]
+validData<-valid_in[,colSums(is.na(valid_in))==0]
+
+dim(trainData)
+
+dim(validData)
+
+trainData<-trainData[,-c(1:7)]
+validData<-validData[,-c(1:7)]
+dim(trainData)
+dim(validData)
+
+set.seed(1234)
+```
+2-The original training data set was split into 2 data sets: 70% training data and 30% test data.  The split data sets were used to build prediction models.  The correlation graph is shown in Figure 1.
+```{r}
+inTrain<-createDataPartition(trainData$classe,p=0.7,list=FALSE)
+trainData<-trainData[inTrain,]
+testData<-trainData[-inTrain,]
+dim(trainData)
+dim(testData)
+
+NZV<-nearZeroVar(trainData)
+trainData<-trainData[,-NZV]
+testData<-testData[,-NZV]
+dim(trainData)
+dim(testData)
+
+```
+
+3-Using Classification Tree to Predict
+Figure 2 demonstrated the classification tree.  And Confusion Matrix suggested (Figure 3) the performance regarding to each variable.  According to Figure 3, the accuracy ratte of the model is about 0.76 and the out of sample error is about 0.23.
+
+```{r}
+cor_mat<-cor(trainData[,-53])
+corrplot(cor_mat,order="FPC", method="color", type="lower",t1.cex=0.8,t1.col=rgb(0,0,0))
+highlyCorrelated=findCorrelation(cor_mat,cutoff=0.75)
+names(trainData)[highlyCorrelated]
+
+set.seed(12345)
+decisionTreeMod1<-rpart(classe~.,data=trainData,method="class")
+fancyRpartPlot(decisionTreeMod1)
+
+predictTreeMod1<-predict(decisionTreeMod1,testData,type="class")
+cmtree<-confusionMatrix(predictTreeMod1,testData$classe)
+cmtree
+
+```
+
+```{r}
+plot(cmtree$table, col = cmtree$byClass, 
+     main = paste("Decision Tree - Accuracy =", round(cmtree$overall['Accuracy'], 4)))
+```
+
+4-Using Random Forest to Predict
+As shown in Figure 5, the accuracy of the random forest is as high as 1, and the out of sample error is 0.  In order to test whether there is overfitting, Figure 4 was used.  According to Figure 4, there is no overfitting for random forest prediction model.
+
+```{r}
+controlRF<-trainControl(method="cv",number=3,verboseIter=FALSE)
+modRF1<-train(classe~.,data=trainData,method="rf",trControl=controlRF)
+modRF1$finalModel
+
+predictRF1<-predict(modRF1,newdata=testData)
+cmrf<-confusionMatrix(predictRF1,testData$classe)
+cmrf
+
+plot(modRF1)
+
+plot(cmrf$table, col = cmrf$byClass, main = paste("Random Forest Confusion Matrix: Accuracy =", round(cmrf$overall['Accuracy'], 4)))
+```
+
+5-Using Generalized Boosted Regression Models to Predict
+According to the results shown below, the generalized boosted regression models has accuracy of about 0.97, and do the out of sample error is about 0.03.  
+
+```{r}
+set.seed(12345)
+controlGBM<-trainControl(method="repeatedcv", number=5, repeats=1)
+modGBM<-train(classe~.,data=trainData,method="gbm",trControl=controlGBM,verbose=FALSE)
+modGBM$finalModel
+
+print(modGBM)
+
+predictGBM<-predict(modGBM,newdata=testData)
+cmGBM<-confusionMatrix(predictGBM,testData$classe)
+cmGBM
+```
+6-In conclusion, random forest is the best predictive model for this project.  The answers for the quiz questions are shown below.
+
+```{r}
+Results<-predict(modRF1,newdata=validData)
+Results
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
